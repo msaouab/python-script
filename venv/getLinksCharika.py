@@ -77,15 +77,12 @@ def main():
         last_page_link = pagination.find_elements(By.TAG_NAME, 'a')[-1]
         last_page_url = last_page_link.get_attribute('href')
         last_page = int(last_page_url.split('-')[-1])
-        # all_links = []
         all_links = {}
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = [executor.submit(fetch_links_for_page, cookies, page_num) for page_num in range(1, last_page + 1)]
             for future in concurrent.futures.as_completed(futures):
                 links_set = future.result()
-                # all_links.extend(links_set)
                 all_links.update(links_set)
-                all_links.extend(links_set)
             directory = './data/'
             if not os.path.exists(directory):
                 os.makedirs(directory)
