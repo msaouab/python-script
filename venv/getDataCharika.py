@@ -33,7 +33,72 @@ session = FuturesSession(max_workers=16)
 start_time = time.time()
 index = 1
 
-def extract_data(link):
+def extract_name(soup):
+	name = soup.find('h1', class_='nom society-name').text.strip()
+	return 'name', name
+
+def extract_rating(soup):
+	global_rating_div = soup.find('div', class_='global-rating col-md-12 nopadding')
+	if global_rating_div:
+		rating = global_rating_div.find('a', class_='showHiddenInfos')
+		if rating:
+			rating = rating.text.strip()
+		return 'rating', rating
+	return 'rating', None
+
+def extract_address(soup):
+	address_tag = soup.find('div', class_='row ligne-tfmw col-md-6')
+	address = address_tag.text.strip().replace("Adresse", "").strip() if address_tag else None
+	return 'address', address
+
+def extract_phone(soup):
+	tel_table = soup.find('table', class_='table nomargin')
+	if tel_table:
+		phone_ele = tel_table.find_all('span', class_='marketingInfoTelFax')
+		phone = [tel.text.strip() for tel in phone_ele]
+		return 'phone', phone
+	return 'phone', None
+
+def extract_fax(soup):
+	fax_elements = soup.find_all('span', class_='mrg-fiche2')
+	fax = [fax_element.find_next('span', class_='marketingInfoTelFax').text.strip() for fax_element in fax_elements]
+	return 'fax', fax
+
+def extract_email(soup):
+	email_elements = soup.find_all('span', class_='mrg-fiche3')
+	email_links = [email_element.find_next('a')['href'] for email_element in email_elements]
+	emails = [link.split(':')[-1] for link in email_links]
+	return 'mail', emails
+
+def extract_website(soup):
+	website_elements = soup.find_all('span', class_='mrg-fiche4')
+	website = [website_element.find_next('a')['href'] for website_element in website_elements]
+	return 'website', website
+
+def extract_status(soup):
+	status_tag = soup.find('i', class_='folder-openicon- icon-fw')
+	status = status_tag.find_parent('td').find_next_sibling('td').text.strip() if status_tag else None
+	return 'status', status
+
+def extract_capital(soup):
+	capital_tag = soup.find('i', class_='moneyicon- icon-fw')
+	capital = capital_tag.find_parent('td').find_next_sibling('td').text.strip() if capital_tag else None
+	return 'capital', capital
+
+def extract_latitude(soup):
+	latitude = soup.find('input', class_='latitude')['value']
+	return 'latitude', latitude
+
+def extract_longitude(soup):
+	longitude = soup.find('input', class_='longitude')['value']
+	return 'longitude', longitude
+
+def extract_activity(soup):
+	activity_tag = soup.find('span', title=True)
+	activity = activity_tag.find_next('h2').text.strip() if activity_tag else None
+	return 'activity', activity
+
+def extract_data_parallel(link):
 	global index
 	print("Fetching data for", index, "companies...")
 	index += 1
@@ -52,62 +117,35 @@ def extract_data(link):
 				print("Retrying...")
 				time.sleep(10)
 				continue
-
 	soup = BeautifulSoup(html, 'html.parser')
+	futures = []
+	with ThreadPoolExecutor(max_workers=16) as executor:
+		futures.append(executor.submit(extract_name, soup))
+		futures.append(executor.submit(extract_rating, soup))
+		futures.append(executor.submit(extract_address, soup))
+		futures.append(executor.submit(extract_phone, soup))
+		futures.append(executor.submit(extract_fax, soup))
+		futures.append(executor.submit(extract_email, soup))
+		futures.append(executor.submit(extract_website, soup))
+		futures.append(executor.submit(extract_status, soup))
+		futures.append(executor.submit(extract_capital, soup))
+		futures.append(executor.submit(extract_latitude, soup))
+		futures.append(executor.submit(extract_longitude, soup))
+		futures.append(executor.submit(extract_activity, soup))
 
-	company_data = {}
-	name = soup.find('h1', class_='nom society-name').text.strip()
-	company_data['name'] = name
-	global_rating_div = soup.find('div', class_='global-rating col-md-12 nopadding')
-	if global_rating_div:
-		rating = global_rating_div.find('a', class_='showHiddenInfos')
-		if rating:
-			rating = rating.text.strip()
-		company_data['rating'] = rating
-	address_tag = soup.find('div', class_='row ligne-tfmw col-md-6')
-	address = address_tag.text.strip().replace("Adresse", "").strip() if address_tag else None
-	company_data['address'] = address
-	if address:
-		location = address.split(' - ')
-		if len(location) > 1:
-			city = location[1].strip()
-			company_data['city'] = city
-	tel_table = soup.find('table', class_='table nomargin')
-	if tel_table:
-		phone_ele = tel_table.find_all('span', class_='marketingInfoTelFax')
-		phone = [tel.text.strip() for tel in phone_ele]
-		company_data['phone'] = phone
-	fax_elements = soup.find_all('span', class_='mrg-fiche2')
-	fax = [fax_element.find_next('span', class_='marketingInfoTelFax').text.strip() for fax_element in fax_elements]
-	company_data['fax'] = fax
-	email_elements = soup.find_all('span', class_='mrg-fiche3')
-	email_links = [email_element.find_next('a')['href'] for email_element in email_elements]
-	emails = [link.split(':')[-1] for link in email_links]
-	company_data['mail'] = emails
-	website_elements = soup.find_all('span', class_='mrg-fiche4')
-	website = [website_element.find_next('a')['href'] for website_element in website_elements]
-	company_data['website'] = website
-	status_tag = soup.find('i', class_='folder-openicon- icon-fw')
-	status = status_tag.find_parent('td').find_next_sibling('td').text.strip() if status_tag else None
-	company_data['status'] = status
-	capital_tag = soup.find('i', class_='moneyicon- icon-fw')
-	capital = capital_tag.find_parent('td').find_next_sibling('td').text.strip() if capital_tag else None
-	company_data['capital'] = capital
-	latitude = soup.find('input', class_='latitude')['value']
-	company_data['latitude'] = latitude
-	longitude = soup.find('input', class_='longitude')['value']
-	company_data['longitude'] = longitude
-	activity_tag = soup.find('span', title=True)
-	activity = activity_tag.find_next('h2').text.strip() if activity_tag else None
-	company_data['activity'] = activity
-	return company_data
+	data = {}
+	for future in concurrent.futures.as_completed(futures):
+		key, value = future.result()
+		data[key] = value
+
+	return data
 
 def process_data(data_dict, outfile, num_workers):
 	data = []
 	with ThreadPoolExecutor(max_workers=num_workers) as executor:
 		company_links = [f'{url}{link}' for link in data_dict]
 		print("Fetching data for", len(company_links), "companies...")
-		futures = {executor.submit(extract_data, link): link for link in company_links}
+		futures = {executor.submit(extract_data_parallel, link): link for link in company_links}
 
 		for future in concurrent.futures.as_completed(futures):
 			data.append(future.result())
