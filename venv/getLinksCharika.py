@@ -1,4 +1,5 @@
 import json
+from multiprocessing import Pool
 import os
 import re
 import sys
@@ -29,14 +30,34 @@ sActivite = {
 
 session = requests.Session()
 
-def fetch_links_for_page(cookies, page_num):
+# def fetch_links_for_page(cookies, page_num):
+#     page_link = url + f"societes-{page_num}"
+#     print(f"Fetching links for page {page_num}...")
+#     response = session.get(page_link, cookies=cookies)
+#     soup = BeautifulSoup(response.text, 'html.parser')
+#     anchor_tags = soup.select('.panel-body .text-soc h5 a')
+#     links_set = {anchor['href'] for anchor in anchor_tags if 'href' in anchor.attrs}
+#     return links_set
+
+def fetch_links_for_page(args):
+    page_num, cookies = args
     page_link = url + f"societes-{page_num}"
     print(f"Fetching links for page {page_num}...")
-    response = session.get(page_link, cookies=cookies)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    anchor_tags = soup.select('.panel-body .text-soc h5 a')
-    links_set = {anchor['href'] for anchor in anchor_tags if 'href' in anchor.attrs}
-    return links_set
+    retries = 3
+    while retries > 0:
+        try:
+            response = session.get(page_link, cookies=cookies, timeout=10)  # Adjust timeout as needed
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+            anchor_tags = soup.select('.panel-body .text-soc h5 a')
+            links_set = {anchor['href'] for anchor in anchor_tags if 'href' in anchor.attrs}
+            return links_set
+        except requests.RequestException as e:
+            print(f"Error fetching page {page_num}: {e}")
+            retries -= 1
+            if retries == 0:
+                print(f"Failed to fetch page {page_num} after retries.")
+                return set()
 
 def readConsoleInput():
     for key, value in sActivite.items():
@@ -77,12 +98,22 @@ def main():
         last_page_url = last_page_link.get_attribute('href')
         last_page = int(last_page_url.split('-')[-1])
         all_links = set()
-        for page_num in range(1, last_page + 1):
-            links_set = fetch_links_for_page(cookies, page_num)
-            all_links.update(links_set)
-            directory = './data/'
-            if not os.path.exists(directory):
-                os.makedirs(directory)
+        # for page_num in range(1, last_page + 1):
+        #     links_set = fetch_links_for_page(cookies, page_num)
+        #     all_links.update(links_set)
+
+        directory = './data/'
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        # Multiprocessing pool
+        with Pool() as pool:
+            pages = range(1, last_page + 1)
+            args = [(page, cookies) for page in pages]
+            results = pool.map(fetch_links_for_page, args)
+            for links_set in results:
+                all_links.update(links_set)
+
             with open(json_filename, 'w', encoding='utf-8') as json_file:
                 json.dump(list(all_links), json_file, ensure_ascii=False, indent=2)
         activity_time = time.time() - start_time

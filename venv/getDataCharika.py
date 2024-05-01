@@ -1,13 +1,12 @@
-from concurrent.futures import ThreadPoolExecutor
 from functools import cache
 import json
+from multiprocessing import Pool
 import re
 import time
 from requests_futures.sessions import FuturesSession
 from bs4 import BeautifulSoup
 from requests import session
 import requests
-import concurrent.futures
 
 url = "https://www.charika.ma/"
 sActivite = {
@@ -102,15 +101,21 @@ def extract_data(link):
 	company_data['activity'] = activity
 	return company_data
 
-def process_data(data_dict, outfile, num_workers):
+def process_data(data_dict, outfile):
 	data = []
-	with ThreadPoolExecutor(max_workers=num_workers) as executor:
-		company_links = [f'{url}{link}' for link in data_dict]
-		print("Fetching data for", len(company_links), "companies...")
-		futures = {executor.submit(extract_data, link): link for link in company_links}
+	# with ThreadPoolExecutor(max_workers=num_workers) as executor:
+	# 	company_links = [f'{url}{link}' for link in data_dict]
+	# 	print("Fetching data for", len(company_links), "companies...")
+	# 	futures = {executor.submit(extract_data, link): link for link in company_links}
 
-		for future in concurrent.futures.as_completed(futures):
-			data.append(future.result())
+	# 	for future in concurrent.futures.as_completed(futures):
+	# 		data.append(future.result())
+	# for link in data_dict:
+	# 	data.append(extract_data(f'{url}{link}'))
+	        # Multiprocessing pool
+	with Pool() as pool:
+		args = [f'{url}{link}' for link in data_dict]
+		data = pool.map(extract_data, args)
 
 		filename = f"./data/{outfile}_data.json"
 		with open(filename, 'w', encoding='utf-8') as file:
@@ -142,8 +147,7 @@ def main():
 	print(f"Fetching data for {sActivite[activity]}, filename: {filename}.json")
 	start_time = time.time()
 	data_dict = readJsonFile(filename)
-	num_workers = 16
-	process_data(data_dict, filename, num_workers)
+	process_data(data_dict, filename)
 	time_taken = time.time() - start_time
 	print(f"Time taken: {time_taken / 60} minutes")
 
