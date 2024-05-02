@@ -30,11 +30,9 @@ data_dict = {}
 cache = {}
 session = FuturesSession(max_workers=16)
 start_time = time.time()
-index = 1
 
 def extract_data(link):
-	global index
-	print("Fetching data for", index, "companies...")
+	print("Fetching data from", link, "companies...")
 	index += 1
 	if link in cache:
 		html = cache[link]
@@ -113,11 +111,11 @@ def process_data(data_dict, outfile):
 	# for link in data_dict:
 	# 	data.append(extract_data(f'{url}{link}'))
 	        # Multiprocessing pool
+	filename = f"./data/{outfile}_data.json"
 	with Pool() as pool:
 		args = [f'{url}{link}' for link in data_dict]
 		data = pool.map(extract_data, args)
 
-		filename = f"./data/{outfile}_data.json"
 		with open(filename, 'w', encoding='utf-8') as file:
 			json.dump(data, file, ensure_ascii=False, indent=4)
 
